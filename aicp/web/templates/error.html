@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}错误 · AICP{% endblock %}
+
+{% block content %}
+<h1>错误 {{ code }}</h1>
+<p>{{ message }}</p>
+<a href="{{ url_for('index') }}" class="btn">返回任务列表</a>
+{% endblock %}

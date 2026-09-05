@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AICP{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="container">
+      <a href="{{ url_for('index') }}" class="brand">AICP · 自动化信息收集平台</a>
+      <nav>
+        <a href="{{ url_for('index') }}">任务列表</a>
+        <a href="{{ url_for('scan') }}">新建任务</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="container">
+    <small>仅可用于已获授权的目标 · 使用前请阅读 DISCLAIMER.md</small>
+  </footer>
+  <script>
+  // 认证/CSRF 前端流程:
+  // - 认证启用时, 用户以 ?token=<auth_token> 访问页面, JS 从 URL 读取该 token,
+  //   并作为 Authorization 头附加到所有请求 (/csrf-token 拉取、表单 POST、链接跳转)。
+  // - CSRF 用独立的 csrf_token (由 /csrf-token 端点返回), 仅作 X-CSRF-Token 头。
+  // - 未启用认证时同样强制 CSRF: POST 需带 /csrf-token 返回的令牌 (表单提交
+  //   前先拉取, 与启用认证时的流程一致)。
+  (function() {
+    // 1. 从当前 URL 读取认证 token
+    const authToken = new URLSearchParams(window.location.search).get('token');
+
+    function withAuth(headers) {
+      if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+      return headers;
+    }
+
+    // 2. 拉取 CSRF token (promise 化, 供表单提交时等待)
+    let csrfPromise = null;
+    function getCsrfToken() {
+      if (!csrfPromise) {
+        csrfPromise = fetch('/csrf-token', { headers: withAuth({}) })
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) { return data && data.csrf_token ? data.csrf_token : null; })
+          .catch(function(err) { console.error('CSRF 初始化失败:', err); return null; });
+      }
+      return csrfPromise;
+    }
+    getCsrfToken();
+
+    // 3. 认证启用时: 拦截站内导航链接, 自动附加 ?token=
+    if (authToken) {
+      document.addEventListener('click', function(e) {
+        var a = e.target.closest ? e.target.closest('a') : null;
+        if (!a) return;
+        var href = a.getAttribute('href');
+        if (!href || href.charAt(0) === '#' || /^javascript:/i.test(href)) return;
+        var url;
+        try { url = new URL(href, window.location.origin); }
+        catch (err) { return; }
+        if (url.origin !== window.location.origin) return;  // 站外链接不处理
+        url.searchParams.set('token', authToken);
+        e.preventDefault();
+        if (a.target === '_blank') { window.open(url.toString(), '_blank'); }
+        else { window.location.href = url.toString(); }
+      });
+    }
+
+    // 4. 拦截所有 POST 表单, 附加认证与 CSRF 头
+    Array.from(document.forms).forEach(function(form) {
+      if (form.method.toUpperCase() !== 'POST') return;
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var csrfToken = await getCsrfToken();
+        var formData = new FormData(form);
+        var headers = withAuth({});
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+        var resp = await fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: headers
+        });
+        if (resp.ok || resp.redirected) {
+          if (resp.redirected) {
+            // 302 重定向: 跳到最终 URL, 认证启用时附带 ?token=
+            var url = new URL(resp.url, window.location.origin);
+            if (authToken) url.searchParams.set('token', authToken);
+            window.location.href = url.toString();
+          } else {
+            window.location.reload();
+          }
+        } else {
+          // 错误: 替换页面内容显示错误信息
+          var text = await resp.text();
+          document.open();
+          document.write(text);
+          document.close();
+        }
+      });
+    });
+  })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

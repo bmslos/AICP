@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}任务列表 · AICP{% endblock %}
+
+{% block content %}
+<h1>任务列表</h1>
+
+{% if tasks %}
+<table class="task-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>状态</th>
+      <th>目标</th>
+      <th>授权人</th>
+      <th>创建时间</th>
+      <th>操作</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for t in tasks %}
+    <tr>
+      <td class="mono"><a href="{{ url_for('task_detail', task_id=t.id) }}">{{ t.id[:12] }}…</a></td>
+      <td><span class="status status-{{ t.status.value }}">{{ t.status.value }}</span></td>
+      <td>{{ t.targets | join(', ') }}</td>
+      <td>{{ t.authorized_by or '-' }}</td>
+      <td>{{ t.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td>
+        <a href="{{ url_for('task_detail', task_id=t.id) }}">详情</a>
+        <a href="{{ url_for('view_html_report', task_id=t.id) }}">报告</a>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  <p>暂无任务</p>
+  <a href="{{ url_for('scan') }}" class="btn">新建任务</a>
+</div>
+{% endif %}
+{% endblock %}

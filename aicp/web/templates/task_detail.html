@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}{{ task.id[:8] }}… · AICP{% endblock %}
+
+{% block content %}
+<h1>任务详情</h1>
+
+<div class="task-card">
+  <div class="task-meta">
+    <div><span class="label">任务 ID</span><code>{{ task.id }}</code></div>
+    <div><span class="label">状态</span>
+      <span class="status status-{{ task.status.value }}" id="task-status">{{ task.status.value }}</span>
+      {% if is_running %}<span class="running-indicator">运行中…</span>{% endif %}
+    </div>
+    <div><span class="label">目标</span>{{ task.targets | join(', ') }}</div>
+    <div><span class="label">授权人</span>{{ task.authorized_by or '-' }}</div>
+    <div><span class="label">授权说明</span>{{ task.authorization_note or '-' }}</div>
+    <div><span class="label">授权范围</span>{{ task.authorized_scope | join(', ') or '-' }}</div>
+    <div><span class="label">授权时间</span>{{ task.authorized_at or '-' }}</div>
+    <div><span class="label">创建时间</span>{{ task.created_at }}</div>
+    {% if task.started_at %}<div><span class="label">开始时间</span>{{ task.started_at }}</div>{% endif %}
+    {% if task.finished_at %}<div><span class="label">完成时间</span>{{ task.finished_at }}</div>{% endif %}
+    {% if task.error %}<div class="error"><span class="label">错误</span>{{ task.error }}</div>{% endif %}
+  </div>
+  <div class="task-actions">
+    {% if task.status.value in ('authorized', 'paused', 'failed') and not is_running %}
+    <form method="post" action="{{ url_for('resume_task', task_id=task.id) }}">
+      <button type="submit" class="btn">恢复执行</button>
+    </form>
+    {% endif %}
+    {% if is_running %}
+    <form method="post" action="{{ url_for('cancel_task', task_id=task.id) }}" style="display:inline;">
+      <button type="submit" class="btn">取消任务</button>
+    </form>
+    {% endif %}
+    <a href="{{ url_for('view_html_report', task_id=task.id) }}" class="btn">查看报告</a>
+    <a href="{{ url_for('download_json_report', task_id=task.id) }}" class="btn">下载 JSON</a>
+    <a href="{{ url_for('download_markdown_report', task_id=task.id) }}" class="btn">下载 Markdown</a>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-banner">{{ error }}</div>
+{% endif %}
+
+<h2>阶段执行</h2>
+<table class="task-table">
+  <thead>
+    <tr><th>阶段</th><th>状态</th><th>开始</th><th>结束</th><th>尝试</th><th>错误</th></tr>
+  </thead>
+  <tbody>
+  {% for s in stages %}
+    <tr>
+      <td>{{ s.name.value }}</td>
+      <td><span class="status status-{{ s.status.value }}">{{ s.status.value }}</span></td>
+      <td>{{ s.started_at.strftime('%H:%M:%S') if s.started_at else '-' }}</td>
+      <td>{{ s.finished_at.strftime('%H:%M:%S') if s.finished_at else '-' }}</td>
+      <td>{{ s.attempt }}</td>
+      <td class="error-text">{{ s.error or '' }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="empty-row">(无阶段记录)</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>资产统计</h2>
+{% if assets %}
+<div class="asset-stats">
+  {% set by_type = {} %}
+  {% for a in assets %}{% if a.type not in by_type %}{% set _ = by_type.update({a.type: 0}) %}{% endif %}{% set _ = by_type.update({a.type: by_type[a.type] + 1}) %}{% endfor %}
+  <p>资产总数: {{ assets | length }} ({{ by_type | dictsort | map('join', '=') | join(' ') }})</p>
+</div>
+<table class="task-table">
+  <thead><tr><th>类型</th><th>值</th><th>来源</th><th>技术栈</th></tr></thead>
+  <tbody>
+  {% for a in assets %}
+    <tr>
+      <td>{{ a.type }}</td>
+      <td class="mono">{{ a.value }}</td>
+      <td>{{ a.source }}</td>
+      <td>{{ a.technologies | join(', ') }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty-row">暂无资产</p>
+{% endif %}
+
+<details>
+  <summary>审计日志 ({{ audit | length }})</summary>
+  <table class="task-table audit-table">
+    <thead><tr><th>事件</th><th>详情</th></tr></thead>
+    <tbody>
+    {% for a in audit %}
+      <tr><td>{{ a.event }}</td><td class="mono">{{ a.detail or '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endblock %}
+
+{% block scripts %}
+{% if is_running %}
+<script>
+  // 轮询任务状态, 完成或失败时自动刷新
+  const taskId = "{{ task.id }}";
+  const pollInterval = 2000;
+  async function poll() {
+    try {
+      const r = await fetch(`/api/tasks/${taskId}/status`);
+      const data = await r.json();
+      if (!data.is_running) {
+        // 不再运行, 刷新页面看最终状态
+        window.location.reload();
+        return;
+      }
+    } catch (e) {
+      console.error("轮询失败:", e);
+    }
+    setTimeout(poll, pollInterval);
+  }
+  setTimeout(poll, pollInterval);
+</script>
+{% endif %}
+{% endblock %}

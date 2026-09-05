@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}新建任务 · AICP{% endblock %}
+
+{% block content %}
+<h1>新建任务</h1>
+
+<div class="warning-banner">
+  <strong>合规警告</strong>: 本工具仅可用于已获书面授权的目标。
+  未经授权对第三方系统进行扫描/探测可能违反《网络安全法》《刑法》第二百八十五条等规定。
+</div>
+
+{% if error %}
+<div class="error-banner">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('scan') }}" class="scan-form">
+  <div class="form-row">
+    <label for="targets">目标 (域名 / IP / CIDR，每行一个或逗号分隔)</label>
+    <textarea id="targets" name="targets" rows="4" required
+              placeholder="example.com&#10;1.2.3.4&#10;10.0.0.0/24">{{ request.form.targets or '' }}</textarea>
+  </div>
+
+  <div class="form-row">
+    <label for="authorized_by">授权人</label>
+    <input type="text" id="authorized_by" name="authorized_by"
+           value="{{ request.form.authorized_by or '' }}" required>
+  </div>
+
+  <div class="form-row">
+    <label for="authorization_note">授权说明 (如授权书编号)</label>
+    <input type="text" id="authorization_note" name="authorization_note"
+           value="{{ request.form.authorization_note or '' }}" required>
+  </div>
+
+  <div class="form-row">
+    <label for="scope">授权范围 (域名/IP/CIDR，每行一个或逗号分隔)</label>
+    <textarea id="scope" name="scope" rows="4" required
+              placeholder="example.com&#10;1.2.3.4">{{ request.form.scope or '' }}</textarea>
+  </div>
+
+  <div class="form-row form-checkbox">
+    <label>
+      <input type="checkbox" id="allow_private" name="allow_private"
+             {{ 'checked' if request.form.allow_private else '' }}>
+      <span>允许扫描私有/保留 IP 段 (10.0.0.0/8、127.0.0.0/8、169.254.0.0/16 等)</span>
+    </label>
+    <small class="hint">默认拒绝以防 SSRF 与内网探测。仅在确有内网书面授权时勾选。</small>
+  </div>
+
+  <button type="submit" class="btn btn-primary">提交任务 (后台异步执行)</button>
+</form>
+{% endblock %}

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aicp"
+version = "0.1.0"
+description = "自动化信息收集平台 - 编排 OneForAll / Nmap / httpx / Wappalyzer 的安全资产收集流水线"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "aicp contributors" }]
+dependencies = [
+    "click>=8.1",
+    "flask>=2.0",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",  # 覆盖率门禁 (行动项 #8)
+    "psutil>=5.9",  # 测试专用: 断言进程树被终止 (行动项 #4); 运行时零新依赖
+]
+
+[project.scripts]
+aicp = "aicp.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aicp*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    # 恢复验证套件 (行动项 #8): 一键验证事故修复后系统可恢复
+    # `pytest -m recovery`
+    "recovery: 断点续传/僵死接管/租约/进程树清理等恢复路径回归",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# P1-5: 起步只启用默认错误类 + 未使用导入 (当前代码全绿), 稳定后逐步放开
+select = ["E4", "E7", "E9", "F"]
